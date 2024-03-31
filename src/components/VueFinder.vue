@@ -2,14 +2,37 @@
   <div class="vuefinder" ref="root">
     <div :class="app.theme.actualValue === 'dark' ? 'dark': ''">
       <div
-          :class="app.fullScreen ? 'fixed w-screen inset-0 z-20' : 'relative rounded-md'"
-          :style="!app.fullScreen ? 'max-height: ' + maxHeight : ''"
-          class="border flex flex-col bg-white dark:bg-gray-800 text-gray-700 dark:text-neutral-400 border-neutral-300 dark:border-gray-900 min-w-min select-none"
-          @mousedown="app.emitter.emit('vf-contextmenu-hide')"
-          @touchstart="app.emitter.emit('vf-contextmenu-hide')">
-        <v-f-toolbar/>
-        <v-f-breadcrumb/>
-        <v-f-explorer/>
+        :class="app.fullScreen ? 'fixed w-screen inset-0 z-20' : 'relative rounded-md'"
+        :style="!app.fullScreen ? 'max-height: ' + maxHeight : ''"
+        class="border flex flex-col bg-white dark:bg-gray-800 text-gray-700 dark:text-neutral-400 border-neutral-300 dark:border-gray-900 min-w-min select-none"
+        @mousedown="app.emitter.emit('vf-contextmenu-hide')"
+        @touchstart="app.emitter.emit('vf-contextmenu-hide')"
+      >
+        <v-f-toolbar
+          @vf-new-folder="emit('vf-new-folder', $event)"
+          @vf-new-file="emit('vf-new-file', $event)"
+          @vf-rename="emit('vf-rename', $event)"
+          @vf-delete="emit('vf-delete', $event)"
+          @vf-upload="emit('vf-upload', $event)"
+        />
+        <v-f-breadcrumb
+          :is-loading="isLoading"
+          :breadcrumb="breadcrumb"
+          @vf-level-up="emit('vf-level-up', $event)"
+          @vf-refresh="emit('vf-refresh', $event)"
+          @vf-home="emit('vf-home', $event)"
+        />
+        <v-f-explorer
+          :items="items ?? []"
+          :owner="owner"
+          :show-folder-count="showFolderCount"
+          :readonly="readonly"
+          @vf-double-click="emit('vf-double-click', $event)"
+        >
+          <template v-slot:file="slotProps">
+            <slot name="file" v-bind="slotProps"></slot>
+          </template>
+        </v-f-explorer>
         <v-f-statusbar/>
       </div>
 
@@ -24,7 +47,7 @@
 
 <script>
 export default {
-  name: 'VueFinder'
+  name: 'VueFinder',
 };
 </script>
 
@@ -38,16 +61,40 @@ import VFExplorer from '../components/Explorer.vue';
 import VFContextMenu from '../components/ContextMenu.vue';
 import VFStatusbar from '../components/Statusbar.vue';
 
-const emit = defineEmits(['select'])
+const emit = defineEmits([
+  'data',
+  'select',
+  'vf-double-click',
+  'vf-new-folder',
+  'vf-new-file',
+  'vf-rename',
+  'vf-delete',
+  'vf-upload',
+  'vf-level-up',
+  'vf-refresh',
+  'vf-home',
+])
 
 const props = defineProps({
   id: {
     type: String,
     default: 'vf'
   },
-  request: {
-    type: [String, Object],
-    required: true,
+  isLoading: {
+    type: Boolean,
+    default: false,
+  },
+  items: {
+    type: Array,
+    default: () => []
+  },
+  showFolderCount: {
+    type: Boolean,
+    default: false,
+  },
+  breadcrumb: {
+    type: Array,
+    default: () => []
   },
   persist: {
     type: Boolean,
@@ -85,6 +132,14 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  owner: {
+    type: Array,
+    default: () => [],
+  },
+  readonly: {
+    type: Boolean,
+    default: false,
+  },
   selectButton: {
     type: Object,
     default(rawProps) {
@@ -93,7 +148,7 @@ const props = defineProps({
         multiple: false,
         click: (items) => {
           // items is an array of selected items
-          // 
+          //
         },
         ...rawProps,
       }
@@ -134,6 +189,10 @@ app.emitter.on('vf-nodes-selected', (items) => {
   emit('select', items);
 })
 
+app.emitter.on('double-click', (item) => {
+  emit('double-click', item);
+});
+
 /** @type {AbortController} */
 let controller;
 app.emitter.on('vf-fetch-abort', () => {
@@ -172,9 +231,12 @@ app.emitter.on('vf-fetch', ({params, body = null, onSuccess = null, onError = nu
       app.emitter.emit('vf-modal-close');
     }
     updateItems(data);
+
     if (onSuccess) {
       onSuccess(data);
     }
+    emit('data', data);
+
   }).catch((e) => {
     console.error(e)
     if (onError) {
@@ -210,7 +272,8 @@ onMounted(() => {
     };
   }
 
-  app.emitter.emit('vf-fetch', {params: {q: 'index', adapter: app.adapter, ...pathExists}});
+  // app.emitter.emit('vf-fetch', {params: {q: 'index', adapter: app.adapter, ...pathExists}});
+  app.emitter.emit('vf-explorer-update');
 });
 
 </script>

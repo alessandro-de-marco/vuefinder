@@ -313,7 +313,9 @@ const sort = reactive( { active: false, column: '', order: '' });
 const getItems = (sorted = true) => {
   const instance = getCurrentInstance();
   if (instance.props.items) {
-    return instance.props.items.sort((a, b) => {
+    const items = instance.props.items.filter(item => !item.archived);
+
+    return items.sort((a, b) => {
       if (a.filename < b.filename) {
         return -1;
       }
